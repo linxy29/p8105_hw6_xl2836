@@ -1,0 +1,6 @@
+---
+title: "Homework 6"
+author: "Xinyi Lin"
+date: "11/16/2018"
+output: github_document
+---

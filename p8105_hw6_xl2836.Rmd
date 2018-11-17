@@ -4,3 +4,51 @@ author: "Xinyi Lin"
 date: "11/16/2018"
 output: github_document
 ---
+
+```{r}
+library(tidyverse)
+```
+
+# Problem 1
+
+## Import and tidy data
+
+```{r}
+homicide_df = read_csv("./data/homicide-data.csv") %>% 
+  mutate(city_state = str_c(city, ", ", state), 
+         bin_diposition = ifelse(disposition == "Closed by arrest", 1, 0),
+         victim_age = as.numeric(victim_age),
+         victim_race_cate = ifelse(victim_race == "White", "white", "non-white"),
+         victim_race_cate = relevel(as.factor(victim_race_cate), ref = "white")) %>% 
+  #filter(city_state != "Dallas, TX")
+  filter(city_state != "Dallas, TX" & city_state != "Phoenix, AZ" & city_state != "Kansas City, MO" & city_state != "Tulsa, AL")
+
+head(homicide_df)
+```
+
+## Baltimore, MD
+
+```{r}
+glm_Baltimore = 
+  homicide_df %>% 
+  filter(city_state == "Baltimore, MD") %>% 
+  glm(bin_diposition ~ victim_age + victim_sex + victim_race, data = .)
+
+broom::tidy(glm_Baltimore)
+```
+
+## Each city
+
+```{r}
+cities_glm =
+  homicide_df %>% 
+  group_by(city_state) %>% 
+  nest() %>% 
+  mutate(models = map(data, ~glm(bin_diposition ~ victim_age + victim_sex + victim_race, data = .x)), 
+         parameters = map(models, broom::tidy)) %>% 
+  select(-models, -data) %>% 
+  unnest()
+  
+  
+```
+

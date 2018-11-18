@@ -7,6 +7,7 @@ output: github_document
 
 ```{r}
 library(tidyverse)
+library(modelr)
 ```
 
 # Problem 1
@@ -46,9 +47,79 @@ cities_glm =
   nest() %>% 
   mutate(models = map(data, ~glm(bin_diposition ~ victim_age + victim_sex + victim_race, data = .x)), 
          parameters = map(models, broom::tidy)) %>% 
-  select(-models, -data) %>% 
-  unnest()
+  #select(-models, -data) %>% 
+  unnest(parameters)
   
   
+```
+
+# Problem 2
+
+## Import and tidy data
+
+```{r}
+birthweight_df =
+  read_csv("./data/birthweight.csv") %>% 
+  mutate(frace = as.factor(frace)) 
+
+head(birthweight_df)
+```
+
+## Propose model
+
+Hypothesis: Assume `babysex`, `fincome` and `gaweeks` are three main factors which influence baby's birth weight.
+
+First, we test `babysex`
+
+```{r}
+birthweight_df %>% 
+  ggplot(aes(babysex, bwt, group = babysex)) +
+  geom_boxplot()
+```
+
+According to the results, sex has little influence on baby's birh weight. Then, we test `fincome`.
+
+```{r}
+birthweight_df %>% 
+  ggplot(aes(fincome, bwt)) +
+  geom_point() +
+  geom_smooth()
+```
+
+The plot above shows family monthly income influence average birth weight of baby. Finally, we test `gaweeks`.
+
+```{r}
+birthweight_df %>% 
+  ggplot(aes(gaweeks, bwt)) +
+  geom_point() +
+  geom_smooth()
+```
+
+Gestational age seems to influence baby's birth weight as well. So we create models with three factors. As these three factor have no relationship with each other, we treated them as main effects only.
+
+```{r}
+own_model = lm(bwt ~ babysex + fincome + gaweeks, data = birthweight_df) 
+
+broom::tidy(own_model)
+
+broom::glance(own_model)
+```
+
+Now, we show the plot of model residuals against fitted values.
+
+```{r}
+birthweight_df %>% 
+  add_predictions(own_model) %>% 
+  add_residuals(own_model) %>% 
+  ggplot(aes(pred, resid)) +
+  geom_hex()
+```
+
+## Cross validation 
+
+```{r}
+compared_model1 = lm(bwt ~ blength + gaweeks, data = birthweight_df)
+
+compared_model2 = lm(bwt ~ bhead + blength + babysex + bhead*blength + blength*babysex + babysex*bhead + bhead*blength*babysex, data = birthweight_df)
 ```
 

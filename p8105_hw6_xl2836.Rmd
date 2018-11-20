@@ -19,6 +19,7 @@ homicide_df = read_csv("./data/homicide-data.csv") %>%
   mutate(city_state = str_c(city, ", ", state), 
          bin_diposition = ifelse(disposition == "Closed by arrest", 1, 0),
          victim_age = as.numeric(victim_age),
+         victim_race = relevel(as.factor(victim_race), ref = "White"),
          victim_race_cate = ifelse(victim_race == "White", "white", "non-white"),
          victim_race_cate = relevel(as.factor(victim_race_cate), ref = "white")) %>% 
   #filter(city_state != "Dallas, TX")
@@ -30,13 +31,24 @@ head(homicide_df)
 ## Baltimore, MD
 
 ```{r}
-glm_Baltimore = 
+glm_Baltimore =
   homicide_df %>% 
   filter(city_state == "Baltimore, MD") %>% 
-  glm(bin_diposition ~ victim_age + victim_sex + victim_race, data = .)
+  glm(bin_diposition ~ victim_age + victim_sex + victim_race, data = .) 
 
-broom::tidy(glm_Baltimore)
+glm_Baltimore %>% 
+  broom::tidy()
+
+glm_Baltimore %>% 
+  broom::tidy() %>% 
+  mutate(OR = exp(estimate)) %>%
+  select(term, log_OR = estimate, OR, p.value) 
+
+glm_Baltimore %>% 
+  confint()
 ```
+
+So, the odds ratio of solving homicides comparing black victims to white victims keeping all other variable fixed is 0.82.
 
 ## Each city
 
@@ -47,10 +59,9 @@ cities_glm =
   nest() %>% 
   mutate(models = map(data, ~glm(bin_diposition ~ victim_age + victim_sex + victim_race, data = .x)), 
          parameters = map(models, broom::tidy)) %>% 
-  #select(-models, -data) %>% 
-  unnest(parameters)
-  
-  
+  unnest(parameters) %>% 
+  mutate(OR = exp(estimate)) %>%
+  select(term, log_OR = estimate, OR, p.value)
 ```
 
 # Problem 2
@@ -118,8 +129,31 @@ birthweight_df %>%
 ## Cross validation 
 
 ```{r}
-compared_model1 = lm(bwt ~ blength + gaweeks, data = birthweight_df)
+cv_df = 
+  crossv_mc(birthweight_df, 100) %>% 
+  mutate(train = map(train, as_tibble),
+         test = map(test, as_tibble))
+```
 
-compared_model2 = lm(bwt ~ bhead + blength + babysex + bhead*blength + blength*babysex + babysex*bhead + bhead*blength*babysex, data = birthweight_df)
+```{r}
+cv_df = 
+  cv_df %>% 
+  mutate(own_mod = map(train, ~lm(bwt ~ babysex + fincome + gaweeks, data = .x)),
+         compared_mod1 = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+         compared_mod2 = map(train, ~lm(bwt ~ bhead + blength + babysex + bhead*blength + blength*babysex + babysex*bhead + bhead*blength*babysex, data = .x))) %>% 
+  mutate(rmse_own = map2_dbl(own_mod, test, ~rmse(model = .x, data = .y)),
+         rmse_mod1 = map2_dbl(compared_mod1, test, ~rmse(model = .x, data = .y)),
+         rmse_mod2 = map2_dbl(compared_mod2, test, ~rmse(model = .x, data = .y)))
+```
+
+Visualization
+
+```{r}
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  gather(key = model, value = rmse) %>% 
+  mutate(model = str_replace(model, "rmse_", ""),
+         model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
 ```
 

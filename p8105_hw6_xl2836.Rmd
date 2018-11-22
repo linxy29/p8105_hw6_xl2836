@@ -8,6 +8,7 @@ output: github_document
 ```{r}
 library(tidyverse)
 library(modelr)
+library(broom)
 ```
 
 # Problem 1
@@ -19,9 +20,8 @@ homicide_df = read_csv("./data/homicide-data.csv") %>%
   mutate(city_state = str_c(city, ", ", state), 
          bin_diposition = ifelse(disposition == "Closed by arrest", 1, 0),
          victim_age = as.numeric(victim_age),
-         victim_race = relevel(as.factor(victim_race), ref = "White"),
-         victim_race_cate = ifelse(victim_race == "White", "white", "non-white"),
-         victim_race_cate = relevel(as.factor(victim_race_cate), ref = "white")) %>% 
+         victim_race = ifelse(victim_race == "White", "white", "non-white"),
+         victim_race = relevel(as.factor(victim_race), ref = "white")) %>% 
   #filter(city_state != "Dallas, TX")
   filter(city_state != "Dallas, TX" & city_state != "Phoenix, AZ" & city_state != "Kansas City, MO" & city_state != "Tulsa, AL")
 
@@ -34,18 +34,23 @@ head(homicide_df)
 glm_Baltimore =
   homicide_df %>% 
   filter(city_state == "Baltimore, MD") %>% 
-  glm(bin_diposition ~ victim_age + victim_sex + victim_race, data = .) 
+  glm(bin_diposition ~ victim_age + victim_sex + victim_race, data = .,family = binomial()) 
 
-glm_Baltimore %>% 
-  broom::tidy()
+exp(cbind(coef(glm_Baltimore), confint(glm_Baltimore))) 
+```
 
-glm_Baltimore %>% 
+```{r}
+glm_estimate =
+  glm_Baltimore %>% 
   broom::tidy() %>% 
   mutate(OR = exp(estimate)) %>%
   select(term, log_OR = estimate, OR, p.value) 
 
-glm_Baltimore %>% 
-  confint()
+confint(glm_Baltimore) %>% 
+  broom::tidy() %>% 
+  rename(term = .rownames, CI_lower = X2.5.., CI_higher = X97.5..) %>% 
+  inner_join(glm_estimate) %>% 
+  select(term, OR, CI_lower, CI_higher, everything())
 ```
 
 So, the odds ratio of solving homicides comparing black victims to white victims keeping all other variable fixed is 0.82.

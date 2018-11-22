@@ -8,14 +8,13 @@ output: github_document
 ```{r}
 library(tidyverse)
 library(modelr)
-library(broom)
 ```
 
 # Problem 1
 
 ## Import and tidy data
 
-```{r}
+```{r, message=FALSE}
 homicide_df = read_csv("./data/homicide-data.csv") %>% 
   mutate(city_state = str_c(city, ", ", state), 
          bin_diposition = ifelse(disposition == "Closed by arrest", 1, 0),
@@ -36,7 +35,7 @@ glm_Baltimore =
   filter(city_state == "Baltimore, MD") %>% 
   glm(bin_diposition ~ victim_age + victim_sex + victim_race, data = .,family = binomial()) 
 
-exp(cbind(coef(glm_Baltimore), confint(glm_Baltimore))) 
+#exp(cbind(coef(glm_Baltimore), confint(glm_Baltimore))) %>% 
 ```
 
 ```{r}
@@ -46,28 +45,67 @@ glm_estimate =
   mutate(OR = exp(estimate)) %>%
   select(term, log_OR = estimate, OR, p.value) 
 
-confint(glm_Baltimore) %>% 
+exp(confint(glm_Baltimore)) %>% 
   broom::tidy() %>% 
-  rename(term = .rownames, CI_lower = X2.5.., CI_higher = X97.5..) %>% 
+  rename(term = .rownames, conf_low = X2.5.., conf_high = X97.5..) %>% 
   inner_join(glm_estimate) %>% 
-  select(term, OR, CI_lower, CI_higher, everything())
+  select(term, OR, conf_low, conf_high, everything())
 ```
 
-So, the odds ratio of solving homicides comparing black victims to white victims keeping all other variable fixed is 0.82.
+So, the odds ratio of solving homicides comparing non-white victims to white victims keeping all other variable fixed is 0.44 and the confidence interval is (0.31, 0.62).
 
 ## Each city
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
+get_CI = function(model){
+  confint(model) %>% 
+    exp() %>% 
+  #exp(confint(glm_Baltimore)) %>% 
+    broom::tidy() %>% 
+    rename(term = .rownames, conf_low = X2.5.., conf_high = X97.5..) %>% 
+    as.tibble()
+}
+
+# test function
+get_CI(glm_Baltimore)   
+
+glm_Albuquerque =
+  homicide_df %>% 
+  filter(city_state == "Albuquerque, NM") %>% 
+  glm(bin_diposition ~ victim_age + victim_sex + victim_race, data = .,family = binomial()) 
+
+glm_Albuquerque
+
+get_CI(glm_Albuquerque)
+```
+
+```{r, message=FALSE, warning=FALSE}
 cities_glm =
   homicide_df %>% 
   group_by(city_state) %>% 
   nest() %>% 
-  mutate(models = map(data, ~glm(bin_diposition ~ victim_age + victim_sex + victim_race, data = .x)), 
+  mutate(models = map(data, ~glm(bin_diposition ~ victim_age + victim_sex + victim_race, data = .x, family = binomial())), 
          parameters = map(models, broom::tidy)) %>% 
-  unnest(parameters) %>% 
+  mutate(CI = map(models, get_CI),
+         results = map2(CI, parameters, inner_join)) %>% 
+  unnest(results) %>% 
   mutate(OR = exp(estimate)) %>%
-  select(term, log_OR = estimate, OR, p.value)
+  filter(term == "victim_racenon-white") %>% 
+  select(city_state, OR, conf_low, conf_high)
+
+head(cities_glm)
 ```
+
+```{r}
+cities_glm %>% 
+  mutate(city_state = fct_reorder(city_state, desc(OR))) %>% 
+  ggplot(aes(x = city_state, y = OR)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = conf_low, ymax = conf_high)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+According to this plot, we can find that the confidence intervals of OR in different cities are very different Besides, most estimates of OR are smaller than 1.0, so comparing to white victims there are less solving homicides when victims are non-white.
 
 # Problem 2
 

@@ -121,45 +121,24 @@ head(birthweight_df)
 
 ## Propose model
 
-Hypothesis: Assume `babysex`, `fincome` and `gaweeks` are three main factors which influence baby's birth weight.
-
-First, we test `babysex`
+We used stepwise regression to find out a suitable model.
 
 ```{r}
-birthweight_df %>% 
-  ggplot(aes(babysex, bwt, group = babysex)) +
-  geom_boxplot()
+fitted_model <- lm(bwt ~ ., data = birthweight_df)
+step(fitted_model, direction = 'both')
 ```
 
-According to the results, sex has little influence on baby's birh weight. Then, we test `fincome`.
+So one of suitable model is `lm(formula = bwt ~ babysex + bhead + blength + delwt + fincome + frace + gaweeks + mheight + mrace + parity + ppwt + smoken, data = birthweight_df)`
 
 ```{r}
-birthweight_df %>% 
-  ggplot(aes(fincome, bwt)) +
-  geom_point() +
-  geom_smooth()
-```
-
-The plot above shows family monthly income influence average birth weight of baby. Finally, we test `gaweeks`.
-
-```{r}
-birthweight_df %>% 
-  ggplot(aes(gaweeks, bwt)) +
-  geom_point() +
-  geom_smooth()
-```
-
-Gestational age seems to influence baby's birth weight as well. So we create models with three factors. As these three factor have no relationship with each other, we treated them as main effects only.
-
-```{r}
-own_model = lm(bwt ~ babysex + fincome + gaweeks, data = birthweight_df) 
+own_model = lm(formula = bwt ~ babysex + bhead + blength + delwt + fincome + frace + gaweeks + mheight + mrace + parity + ppwt + smoken, data = birthweight_df) 
 
 broom::tidy(own_model)
 
 broom::glance(own_model)
 ```
 
-Now, we show the plot of model residuals against fitted values.
+According to the p-value and r-square, we can conclude that this model is effective. Now, we show the plot of model residuals against fitted values.
 
 ```{r}
 birthweight_df %>% 
@@ -181,7 +160,7 @@ cv_df =
 ```{r}
 cv_df = 
   cv_df %>% 
-  mutate(own_mod = map(train, ~lm(bwt ~ babysex + fincome + gaweeks, data = .x)),
+  mutate(own_mod = map(train, ~lm(bwt ~ babysex + bhead + blength + delwt + fincome + frace + gaweeks + mheight + mrace + parity + ppwt + smoken, data = .x)),
          compared_mod1 = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
          compared_mod2 = map(train, ~lm(bwt ~ bhead + blength + babysex + bhead*blength + blength*babysex + babysex*bhead + bhead*blength*babysex, data = .x))) %>% 
   mutate(rmse_own = map2_dbl(own_mod, test, ~rmse(model = .x, data = .y)),

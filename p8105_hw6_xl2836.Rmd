@@ -21,7 +21,6 @@ homicide_df = read_csv("./data/homicide-data.csv") %>%
          victim_age = as.numeric(victim_age),
          victim_race = ifelse(victim_race == "White", "white", "non-white"),
          victim_race = relevel(as.factor(victim_race), ref = "white")) %>% 
-  #filter(city_state != "Dallas, TX")
   filter(city_state != "Dallas, TX" & city_state != "Phoenix, AZ" & city_state != "Kansas City, MO" & city_state != "Tulsa, AL")
 
 head(homicide_df)
@@ -39,6 +38,10 @@ glm_Baltimore =
 ```
 
 ```{r}
+glm_estimate =
+  glm_Baltimore %>% 
+  broom::tidy()
+
 glm_estimate =
   glm_Baltimore %>% 
   broom::tidy() %>% 
@@ -60,7 +63,6 @@ So, the odds ratio of solving homicides comparing non-white victims to white vic
 get_CI = function(model){
   confint(model) %>% 
     exp() %>% 
-  #exp(confint(glm_Baltimore)) %>% 
     broom::tidy() %>% 
     rename(term = .rownames, conf_low = X2.5.., conf_high = X97.5..) %>% 
     as.tibble()
@@ -73,8 +75,6 @@ glm_Albuquerque =
   homicide_df %>% 
   filter(city_state == "Albuquerque, NM") %>% 
   glm(bin_diposition ~ victim_age + victim_sex + victim_race, data = .,family = binomial()) 
-
-glm_Albuquerque
 
 get_CI(glm_Albuquerque)
 ```
@@ -121,7 +121,7 @@ head(birthweight_df)
 
 ## Propose model
 
-We used stepwise regression to find out a suitable model.
+We used stepwise regression to find out a suitable model. Stepwise regression helps us to add and remove different factors and compares adjusted r-square to decide an effective model.
 
 ```{r}
 fitted_model <- lm(bwt ~ ., data = birthweight_df)
